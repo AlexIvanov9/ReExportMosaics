@@ -129,6 +129,30 @@ def open_p(flight_id, field_id, camera = "jenoptik"):
     doc.open(project)
     return
 
+def get_old_version(flight_id, field_id, camera = "jenoptik"):
+    """
+    Parameters
+    ----------
+    flight_id : int
+    field_id : int or str
+    camera : str by default jenoptik
+
+    Returns
+    -------
+    path to save project
+    """
+    project = get_project_filename(flight_id, field_id, camera)
+    doc = PhotoScan.app.document
+    doc.open(project)
+    path = old_project_name(project)
+    doc.save(path ,version = '1.0.0')
+    #if save only one time it doesn't work
+    doc.save(path ,version = '1.0.0')
+    return path
+    
+    
+    
+    
 
 
 def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
@@ -147,14 +171,15 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
     project 1.0
 
     """
-    project = get_project_filename(flight_id, field_id, camera)
-    doc = PhotoScan.app.document
-    doc.open(project)
-    path = old_project_name(project)
-    doc.save(path ,version = '1.0.0')
-    #if save only one time it doesn't work
-    doc.save(path ,version = '1.0.0')
-    txtsaveproj = check_user_script()
+    if type(field_id).__name__ = "list":
+        path = "\n"
+        for field in field_id:
+            try:
+                path.join(get_old_version(flight_id, field, camera))
+            except Exception as e:
+                print (e)    
+    else:
+        path = get_old_version(flight_id, field_id, camera)
     path_to_txt(txtsaveproj,path)
     if exportfolder:
         export_path_to_txt(os,path.dirname(txtsaveproj),exportfolder)
