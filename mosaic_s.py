@@ -1,14 +1,11 @@
 
 import glob
 import shutil
-import json
 import os
 import time
 import subprocess,time
 try:
     import PhotoScan
-    import dirfuncs
-    import basesettings
     from psutils import get_project_filename
 except ImportError:
     pass
@@ -102,11 +99,6 @@ def export_path_to_txt(folder,exportpath):
     exportpath - str - path to folder for export mosaics
     """
     txtpath = os.path.join(folder,"mosaicexport.txt")
-    if os.path.isfile(txtpath):
-        try:
-            os.remove(txtpath)
-        except Exception as e:
-            print (e)
     f= open(txtpath,"w+")
     f.write(exportpath)
     f.close
@@ -128,6 +120,8 @@ def open_p(flight_id, field_id, camera = "jenoptik"):
     doc = PhotoScan.app.document
     doc.open(project)
     return
+
+
 
 def get_old_version(flight_id, field_id, camera = "jenoptik"):
     """
@@ -171,20 +165,25 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
     project 1.0
 
     """
-    if type(field_id).__name__ = "list":
-        path = "\n"
+    txtsaveproj = check_user_script()
+    if type(field_id).__name__ == "list":
+        path = []
         for field in field_id:
             try:
-                path.join(get_old_version(flight_id, field, camera))
+                path.append(get_old_version(flight_id, field, camera))
             except Exception as e:
-                print (e)    
+                er = e
+        if len(path) == 0:
+            return er
+        path = '\n'.join(path)
     else:
         path = get_old_version(flight_id, field_id, camera)
     path_to_txt(txtsaveproj,path)
     if exportfolder:
-        export_path_to_txt(os,path.dirname(txtsaveproj),exportfolder)
+        export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
     subprocess.call(["C:\Program Files\Agisoft\PhotoScan Pro 1.0\PhotoScan Pro 1.0\photoscan.exe"])
-    os.remove(path)
+    for pr in path.split('\n'):
+        os.remove(pr)
     PhotoScan.app.messageBox("Re-export was successful")
     
     
