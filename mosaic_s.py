@@ -1,5 +1,6 @@
 
 import glob
+import json
 import shutil
 import os
 import time
@@ -80,13 +81,10 @@ def path_to_txt (txtpath, projectpath):
     """
     create txt file with path to photoscan 1.0 project
     """
-    if os.path.isfile(txtpath):
-        try:
-            os.remove(txtpath)
-        except Exception as e:
-            print (e)
     f= open(txtpath,"w+")
-    f.write(projectpath)
+    
+    json.dump(projectpath,f)
+    
     f.close
     return txtpath
 
@@ -168,21 +166,35 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
     txtsaveproj = check_user_script()
     if type(field_id).__name__ == "list":
         path = []
+        patholdprojects = []
         for field in field_id:
             try:
-                path.append(get_old_version(flight_id, field, camera))
+                old_pr = get_old_version(flight_id, field, camera)
+                projectinfo = {
+                        'ProjectPath': old_pr,
+                        'Flight_id' : flight_id,
+                        'Field': field,
+                        'Camera': camera
+                        }
+                patholdprojects.append(old_pr)
+                path.append(projectinfo)
             except Exception as e:
                 er = e
         if len(path) == 0:
             return er
-        path = '\n'.join(path)
+        patholdprojects = '\n'.join(patholdprojects)
     else:
-        path = get_old_version(flight_id, field_id, camera)
+        patholdprojects = get_old_version(flight_id, field_id, camera)
+        path = [{'ProjectPath': patholdprojects,
+                'Flight_id' : flight_id,
+                'Field': field_id,
+                'Camera': camera}]
+        
     path_to_txt(txtsaveproj,path)
     if exportfolder:
         export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
     subprocess.call(["C:\Program Files\Agisoft\PhotoScan Pro 1.0\PhotoScan Pro 1.0\photoscan.exe"])
-    for pr in path.split('\n'):
+    for pr in patholdprojects.split('\n'):
         os.remove(pr)
     PhotoScan.app.messageBox("Re-export was successful")
     

@@ -3,7 +3,8 @@
 import PhotoScan
 import os
 import time
-
+import mosaic
+import json
 
 def batch_export_ortho():
     """
@@ -11,15 +12,17 @@ def batch_export_ortho():
     
     """
     global path_to_project
-    print(path_to_project)
     for path in path_to_project:
-        export_filename = os.path.basename(path).replace('.psz','.tif')
+        export_filename = os.path.basename(path['ProjectPath']).replace('.psz','.tif')
         export_path = os.path.join(export_folder,export_filename)
         try:
             project = PhotoScan.app.document
-            project.open(path)
+            project.open(path['ProjectPath'])
+            
+            dx, dy = mosaic.get_resolution(path['Flight_id'], path['Field'], path['Camera'])
+            
             status = project.activeChunk.exportOrthophoto(
-            export_path, format="tif", color_correction=False, blending='average',
+            export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
             projection=project.activeChunk.projection)
         except Exception as e:
             print(e)
@@ -30,14 +33,17 @@ def batch_export_ortho():
 
 def export_ortho():
     global path_to_project
-    print(path_to_project)
-    export_filename = os.path.basename(path_to_project).replace('.psz','.tif')
+    print(path_to_project['ProjectPath'])
+    export_filename = os.path.basename(path_to_project['ProjectPath']).replace('.psz','.tif')
     export_path = os.path.join(export_folder,export_filename)
     try:
         project = PhotoScan.app.document
-        project.open(path_to_project)
+        project.open(path_to_project['ProjectPath'])
+        
+        dx, dy = mosaic.get_resolution(path_to_project['Flight_id'], path_to_project['Field'], path_to_project['Camera'])
+        
         status = project.activeChunk.exportOrthophoto(
-        export_path, format="tif", color_correction=False, blending='average',
+        export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
         projection=project.activeChunk.projection)
         if status is True:
             print("Perfect")
@@ -50,7 +56,7 @@ def export_ortho():
 
 def open_project():
     global path_to_project
-    print(path_to_project)
+    path_to_project = path_to_project['ProjectPath']
     try:
         project = PhotoScan.app.document
         project.open(path_to_project)
@@ -65,8 +71,8 @@ def check_lines(txt_file):
     check txt file for count of project
     if there are more then 1 path - need batch proccess it
     """
-    file = open(txt_file,"r")
-    lines = len(file.readlines())
+    
+    lines = len(get_name_from_txt (txt_file))
     if lines > 1:
         return True
     else:
@@ -79,8 +85,8 @@ def get_name_from_txt (txtpath):
     file prokect should be save in Photoscan 1.3
     """
     f= open(txtpath,"r")
-    contents = f.read()
-    f.close       
+    contents = json.load(f)
+    #f.close       
     return contents
 
 
@@ -136,16 +142,16 @@ if check_txt(projectpath):
     
     global path_to_project
     if check_lines(projectpath):
-        path_to_project = get_name_from_txt (projectpath).split('\n')
+        path_to_project = get_name_from_txt (projectpath)
         lexport = "Export orthophoto/batch export"  
         PhotoScan.app.addMenuItem(lexport, batch_export_ortho)
         
         
     else:
-        path_to_project = get_name_from_txt (projectpath)
-        lexport = "Export orthophoto/Export mosaic{} ".format(os.path.basename(path_to_project[:-4]))    
+        path_to_project = get_name_from_txt (projectpath)[0]
+        lexport = "Export orthophoto/Export mosaic{} ".format(os.path.basename(path_to_project['ProjectPath'][:-4]))    
         PhotoScan.app.addMenuItem(lexport, export_ortho)
-        label = "Export orthophoto/ Open {}".format(os.path.basename(path_to_project[:-4]))
+        label = "Export orthophoto/ Open {}".format(os.path.basename(path_to_project['ProjectPath'][:-4]))
         PhotoScan.app.addMenuItem(label, open_project)
     
     
