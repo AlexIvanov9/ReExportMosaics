@@ -21,10 +21,6 @@ def batch_export_ortho():
             
             dx, dy = mosaic.get_resolution(path['Flight_id'], path['Field'], path['Camera'])
             
-            status = project.activeChunk.exportOrthophoto(
-            export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
-            projection=project.activeChunk.projection)
-            
             if dx is not None and dy is not None:
                 status = project.activeChunk.exportOrthophoto(
             export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
