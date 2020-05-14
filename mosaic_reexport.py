@@ -24,12 +24,20 @@ def batch_export_ortho():
             status = project.activeChunk.exportOrthophoto(
             export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
             projection=project.activeChunk.projection)
+            
+            if dx is not None and dy is not None:
+                status = project.activeChunk.exportOrthophoto(
+            export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
+            projection=project.activeChunk.projection)
+            else:
+                status = project.activeChunk.exportOrthophoto(export_path, format="tif", color_correction=False, blending='average',projection=project.activeChunk.projection)
         except Exception as e:
             print(e)
     if status is True:
         print("Perfect")
         app = PhotoScan.Application()
         app.quit()
+    
 
 def export_ortho():
     global path_to_project
@@ -39,14 +47,15 @@ def export_ortho():
     try:
         project = PhotoScan.app.document
         project.open(path_to_project['ProjectPath'])
-        
         dx, dy = mosaic.get_resolution(path_to_project['Flight_id'], path_to_project['Field'], path_to_project['Camera'])
-        
-        status = project.activeChunk.exportOrthophoto(
-        export_path, format="tif", color_correction=False, blending='average', dx=dx, dy=dy,
-        projection=project.activeChunk.projection)
+        if dx is not None and dy is not None:
+                status = project.activeChunk.exportOrthophoto(export_path, format="tif", 
+                                                              color_correction=False, blending='average', dx=dx, dy=dy,
+                                                              projection=project.activeChunk.projection)
+        else:
+            status = project.activeChunk.exportOrthophoto(export_path, format="tif", color_correction=False, blending='average',
+                                                          projection=project.activeChunk.projection)
         if status is True:
-            print("Perfect")
             app = PhotoScan.Application()
             app.quit()
     except Exception as e:

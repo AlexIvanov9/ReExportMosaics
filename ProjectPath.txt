@@ -1,0 +1,1 @@
+[{"Field": 10742, "Camera": "jenoptik", "Flight_id": 9556, "ProjectPath": "C:\\Users\\ALEXIV~1\\AppData\\Local\\Temp\\21Projects\\2020-05-04 10742 Giano Petite Verdot Jenoptikv1.psz"},{"Field": 10742, "Camera": "jenoptik", "Flight_id": 9556, "ProjectPath": "C:\\Users\\ALEXIV~1\\AppData\\Local\\Temp\\21Projects\\2020-05-04 10742 Giano Petite Verdot Jenoptikv1.psz"}]
