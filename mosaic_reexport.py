@@ -12,9 +12,12 @@ def batch_export_ortho():
     
     """
     global path_to_project
+    
     for path in path_to_project:
         export_filename = os.path.basename(path['ProjectPath']).replace('.psz','.tif')
         export_path = os.path.join(export_folder,export_filename)
+        if os.path.exists(export_path):
+            continue 
         try:
             project = PhotoScan.app.document
             project.open(path['ProjectPath'])
@@ -95,18 +98,24 @@ def get_name_from_txt (txtpath):
     return contents
 
 
-def get_export_folder(exportpath):
+def get_export_folder(exportpath,flight_id):
     """
     check if there is path to export folder
     """
-    ef = 'C:\Daily artifacts\Daily artifacts'
+    ef = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
     if check_txt(exportpath):
         try:
-            ef = get_name_from_txt (exportpath)
-            return ef
-        except:
-            pass
+            f= open(exportpath,"r")
+            ep = f.read()
+            f.close
+            if not os.path.exists(ef):
+                os.makedirs(ef)
+            return ep
+        except Exception as e:
+            print(e)
     else:
+        if not os.path.exists(ef):
+            os.makedirs(ef)
         return ef
 
 def check_txt(txtpath):
@@ -143,7 +152,8 @@ exportpath = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\
 if check_txt(projectpath):
     
     global export_folder
-    export_folder = get_export_folder(exportpath)
+    flight_id = get_name_from_txt (projectpath)[0]['Flight_id']
+    export_folder = get_export_folder(exportpath,flight_id)
     
     global path_to_project
     if check_lines(projectpath):
