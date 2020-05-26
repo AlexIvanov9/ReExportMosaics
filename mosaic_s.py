@@ -76,6 +76,73 @@ def old_project_name(project):
     return pathExport 
 
 
+def re_build_project(flight_id, field_id, typecam):
+    """
+    rebuild project for 1.3
+    to fix 80% such artefacts as stalactide, blobls
+    """
+    
+    open_p(flight_id, field_id, typecam)
+    doc = PhotoScan.app.document
+    chunk = doc.chunk
+    # reset all camera
+    for cam in chunk.cameras:
+        cam.transform = None
+    # image matching and alignment
+    chunk.matchPhotos(accuracy=PhotoScan.HighestAccuracy, generic_preselection=True, reference_preselection=True, keypoint_limit=1000,tiepoint_limit=0)
+    chunk.alignCameras(adaptive_fitting=False)
+    aligned_photos = []
+    for camera in chunk.cameras:
+        if camera.transform==None:
+            aligned_photos.append(camera)
+       
+    if len(aligned_photos)>0:
+        chunk.alignCameras(aligned_photos,adaptive_fitting=False)
+    chunk.buildModel(surface=PhotoScan.HeightField, interpolation=PhotoScan.EnabledInterpolation)
+    chunk.smoothModel()
+    doc.save()
+    return
+
+
+
+
+
+
+
+def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False):
+    """
+    after re-build 1.3 project
+    re-save in 1.0 to avoide seams
+    ------------------------------
+    Parameters
+    ----------
+    flight_id : int
+    field_id : int or str
+    camera : str by default jenoptik
+
+    Returns
+    mosaic images
+    """
+    
+    if type(field_id).__name__ == "list":
+        
+        for field in field_id:
+            try:
+                re_build_project(flight_id, field_id, typecam)
+            except Exception as e:
+                print (e)
+                field_id = list(set(field_id) - set([field]))
+    else:
+        re_build_project(flight_id, field_id, typecam)
+    
+    save_old_v(flight_id, field_id, typecam, exportfolder)
+    
+    return
+    
+    
+    
+    
+
 
 def path_to_txt (txtpath, projectpath):
     """
