@@ -1,9 +1,6 @@
 
-import glob
-import json
-import shutil
-import os
-import time
+
+import shutil,fnmatch,glob,os,json
 import subprocess,time
 try:
     import PhotoScan
@@ -128,7 +125,7 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False):
         
         for field in field_id:
             try:
-                re_build_project(flight_id, field_id, typecam)
+                re_build_project(flight_id, field, typecam)
             except Exception as e:
                 print (e)
                 field_id = list(set(field_id) - set([field]))
@@ -138,9 +135,6 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False):
     save_old_v(flight_id, field_id, typecam, exportfolder)
     
     return
-    
-    
-    
     
 
 
@@ -154,6 +148,8 @@ def path_to_txt (txtpath, projectpath):
     
     f.close
     return txtpath
+
+
 
 
 def export_path_to_txt(folder,exportpath):
@@ -209,12 +205,28 @@ def get_old_version(flight_id, field_id, camera = "jenoptik"):
     doc.save(path ,version = '1.0.0')
     return path
     
+def check_tr_if_present(exportfolder,project):
+    """
+    for batch export check if tr image already present
+    if yes delete from list for re-save project
     
+    """
+    try:
+        flightdircontents = glob.glob(exportfolder + '/*.tif')
+    except Exception as e:
+        print (e)
+        return False
+    
+    
+    for files in flightdircontents:
+        if fnmatch.fnmatch(files, "*{}*".format(os.path.basename(project)[:-4])):
+            return True
+    return False
     
     
 
 
-def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
+def save_old_v(flight_id, field_id = True, camera = "jenoptik", exportfolder = False,replace = False):
     
     """
     Re-save project to 1.0 version of Photoscan, helpful when we have a seams on TR
@@ -231,11 +243,32 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
 
     """
     txtsaveproj = check_user_script()
+    
+    if exportfolder:
+        export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
+    else:
+        exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
+        
+    if field_id == True:
+        try:
+            import improc
+            from improc import dbops
+            field_id = improc.dbops.spatial.get_mosaic_list(flight_id)
+        except Exception as e:
+            print (e)
+        
+    
     if type(field_id).__name__ == "list":
         path = []
+        # create list of pathes to delete these projects after process fill be finished
         patholdprojects = []
         for field in field_id:
             try:
+                project = get_project_filename(flight_id, field, camera)
+                if check_tr_if_present(exportfolder,project) == True and replace == False:
+                    er = "All project already done"
+                    continue
+                
                 old_pr = get_old_version(flight_id, field, camera)
                 projectinfo = {
                         'ProjectPath': old_pr,
@@ -245,10 +278,13 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
                         }
                 patholdprojects.append(old_pr)
                 path.append(projectinfo)
+             
             except Exception as e:
                 er = e
+        
         if len(path) == 0:
             return er
+        
         patholdprojects = '\n'.join(patholdprojects)
     else:
         patholdprojects = get_old_version(flight_id, field_id, camera)
@@ -258,8 +294,6 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False):
                 'Camera': camera}]
         
     path_to_txt(txtsaveproj,path)
-    if exportfolder:
-        export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
     subprocess.call(["C:\Program Files\Agisoft\PhotoScan Pro 1.0\PhotoScan Pro 1.0\photoscan.exe"])
     for pr in patholdprojects.split('\n'):
         os.remove(pr)
