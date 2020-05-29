@@ -106,7 +106,7 @@ def re_build_project(flight_id, field_id, typecam):
 
 
 
-def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False):
+def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = False):
     """
     after re-build 1.3 project
     re-save in 1.0 to avoide seams
@@ -125,13 +125,22 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False):
         
         for field in field_id:
             try:
+                if replace == False:
+                    exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
+                    project = get_project_filename(flight_id, field, typecam)
+                    if check_tr_if_present(exportfolder,project) == True:
+                        field_id = list(set(field_id) - set([field]))
+                        continue
+                
+                
                 re_build_project(flight_id, field, typecam)
             except Exception as e:
                 print (e)
                 field_id = list(set(field_id) - set([field]))
     else:
         re_build_project(flight_id, field_id, typecam)
-    
+    if len(field_id) == 0:
+        return "All projects are done"
     save_old_v(flight_id, field_id, typecam, exportfolder)
     
     return
