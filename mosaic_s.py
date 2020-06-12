@@ -1,5 +1,3 @@
-
-
 import shutil,fnmatch,glob,os,json
 import subprocess,time
 try:
@@ -78,26 +76,36 @@ def re_build_project(flight_id, field_id, typecam):
     rebuild project for 1.3
     to fix 80% such artefacts as stalactide, blobls
     """
-    
     open_p(flight_id, field_id, typecam)
     doc = PhotoScan.app.document
     chunk = doc.chunk
     # reset all camera
-    for cam in chunk.cameras:
-        cam.transform = None
+    for camera in chunk.cameras:
+        camera.transform = None
+        # camera.enabled = True
     # image matching and alignment
-    chunk.matchPhotos(accuracy=PhotoScan.HighestAccuracy, generic_preselection=True, reference_preselection=True, keypoint_limit=1000,tiepoint_limit=0)
+    chunk.matchPhotos(accuracy=PhotoScan.HighestAccuracy, generic_preselection=True,
+                     reference_preselection=True, keypoint_limit=1000,tiepoint_limit=0)
     chunk.alignCameras(adaptive_fitting=False)
     aligned_photos = []
     for camera in chunk.cameras:
         if camera.transform==None:
             aligned_photos.append(camera)
-       
     if len(aligned_photos)>0:
         chunk.alignCameras(aligned_photos,adaptive_fitting=False)
+    point_cloud = PhotoScan.PointCloud
+    filter = point_cloud.Filter()
+    filter.init(chunk, filter.ReconstructionUncertainty)
+    filter.removePoints(25)
+    chunk.optimizeCameras()
+    filter.removePoints(25)
+    chunk.resetRegion()
     chunk.buildModel(surface=PhotoScan.HeightField, interpolation=PhotoScan.EnabledInterpolation)
-    chunk.smoothModel()
+    chunk.smoothModel(1)
+    # chunk.buildOrthomosaic(surface = PhotoScan.DataSource.ModelData, blending= PhotoScan.AverageBlending)
+    #chunk.crs.project(chunk.transform.matrix.mulp(chunk.region.center)) пременить к центрам снимков
     doc.save()
+    
     return
 
 
@@ -106,7 +114,7 @@ def re_build_project(flight_id, field_id, typecam):
 
 
 
-def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = False):
+def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = True):
     """
     after re-build 1.3 project
     re-save in 1.0 to avoide seams
@@ -120,29 +128,24 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replac
     Returns
     mosaic images
     """
-    
-    if type(field_id).__name__ == "list":
+    if exportfolder == False:
+        exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
         
-        for field in field_id:
-            try:
-                if replace == False:
-                    exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
-                    project = get_project_filename(flight_id, field, typecam)
-                    if check_tr_if_present(exportfolder,project) == True:
-                        field_id = list(set(field_id) - set([field]))
-                        continue
-                
-                
-                re_build_project(flight_id, field, typecam)
-            except Exception as e:
-                print (e)
-                field_id = list(set(field_id) - set([field]))
-    else:
-        re_build_project(flight_id, field_id, typecam)
+    field_id = check_tr_if_present(flight_id, field_id, typecam, exportfolder, replace)
     if len(field_id) == 0:
-        return "All projects are done"
-    save_old_v(flight_id, field_id, typecam, exportfolder)
+        return "All project already done"
     
+    for field in field_id:
+        errormesage = []
+        try:
+            re_build_project(flight_id, field, typecam)
+        except Exception as e:
+            errormesage.append(e)
+            field_id = list(set(field_id) - set([field]))
+    if len(field_id) == 0:
+        return errormesage
+    
+    save_old_v(flight_id, field_id, typecam, exportfolder)
     return
     
 
@@ -189,7 +192,7 @@ def open_p(flight_id, field_id, camera = "jenoptik"):
     project = get_project_filename(flight_id, field_id, camera)
     doc = PhotoScan.app.document
     doc.open(project)
-    return
+    return project
 
 
 
@@ -214,28 +217,51 @@ def get_old_version(flight_id, field_id, camera = "jenoptik"):
     doc.save(path ,version = '1.0.0')
     return path
     
-def check_tr_if_present(exportfolder,project):
+
+
+
+def check_tr_if_present(flight_id, field_id, camera, exportfolder,replace = True):
     """
-    for batch export check if tr image already present
+    check if tr image already present
+    if replace = True delete this image
     if yes delete from list for re-save project
     
     """
-    try:
-        flightdircontents = glob.glob(exportfolder + '/*.tif')
-    except Exception as e:
-        print (e)
-        return False
+    
+    if type(field_id).__name__ != "list":
+        field_id = str(field_id).split("delimiter")
+    flightdircontents = glob.glob(exportfolder + '/*.tif')
+    for field in field_id:
+        try:
+            project = get_project_filename(flight_id, field, camera)
+        except Exception as e:
+            print(e)
+            
+            
+        for file in flightdircontents:
+            if fnmatch.fnmatch(file, "*{}*".format(os.path.basename(project)[:-4])):
+                if replace:
+                    try:
+                        os.remove(file)
+                        continue
+                    except Exception as e:
+                        continue
+                        print (e)
+                        
+                field_id = list(set(field_id) - set([field]))
+                
+    return field_id
     
     
-    for files in flightdircontents:
-        if fnmatch.fnmatch(files, "*{}*".format(os.path.basename(project)[:-4])):
-            return True
-    return False
+    
+    
+    
+    
     
     
 
 
-def save_old_v(flight_id, field_id = True, camera = "jenoptik", exportfolder = False,replace = False):
+def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,replace = False):
     
     """
     Re-save project to 1.0 version of Photoscan, helpful when we have a seams on TR
@@ -251,62 +277,56 @@ def save_old_v(flight_id, field_id = True, camera = "jenoptik", exportfolder = F
     project 1.0
 
     """
+    #rezerv = field_id.copy()
+    # copy scipt and get path to save information about project
     txtsaveproj = check_user_script()
-    
     if exportfolder:
         export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
     else:
         exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
-        
-    if field_id == True:
-        try:
-            import improc
-            from improc import dbops
-            field_id = improc.dbops.spatial.get_mosaic_list(flight_id)
-        except Exception as e:
-            print (e)
-        
     
-    if type(field_id).__name__ == "list":
-        path = []
-        # create list of pathes to delete these projects after process fill be finished
-        patholdprojects = []
-        for field in field_id:
-            try:
-                project = get_project_filename(flight_id, field, camera)
-                if check_tr_if_present(exportfolder,project) == True and replace == False:
-                    er = "All project already done"
-                    continue
-                
-                old_pr = get_old_version(flight_id, field, camera)
-                projectinfo = {
-                        'ProjectPath': old_pr,
-                        'Flight_id' : flight_id,
-                        'Field': field,
-                        'Camera': camera
-                        }
-                patholdprojects.append(old_pr)
-                path.append(projectinfo)
+    # check if precent id if and return list of id 
+    try:
+        field_id = check_tr_if_present(flight_id, field_id, camera, exportfolder , replace)
+    except:
+        field_id = rezerv 
+    if len(field_id) == 0:
+        return "All project already done"
+    
+    
+    path = []
+    # create list of pathes to delete these projects after process fill be finished
+    patholdprojects = []
+    failids = []
+    
+    for field in field_id:
+        try:
+            old_pr = get_old_version(flight_id, field, camera)
+            projectinfo = {
+                    'ProjectPath': old_pr,
+                    'Flight_id' : flight_id,
+                    'Field': field,
+                    'Camera': camera
+                    }
+            patholdprojects.append(old_pr)
+            path.append(projectinfo)
              
-            except Exception as e:
-                er = e
+        except Exception as e:
+            field_id = list(set(field_id) - set([field]))
+            failids.append(field)
+            er = e
         
-        if len(path) == 0:
-            return er
-        
-        patholdprojects = '\n'.join(patholdprojects)
-    else:
-        patholdprojects = get_old_version(flight_id, field_id, camera)
-        path = [{'ProjectPath': patholdprojects,
-                'Flight_id' : flight_id,
-                'Field': field_id,
-                'Camera': camera}]
-        
+    if len(path) == 0:
+        return er
+    
     path_to_txt(txtsaveproj,path)
     subprocess.call(["C:\Program Files\Agisoft\PhotoScan Pro 1.0\PhotoScan Pro 1.0\photoscan.exe"])
-    for pr in patholdprojects.split('\n'):
+    for pr in patholdprojects:
         os.remove(pr)
-    PhotoScan.app.messageBox("Re-export was successful")
+    message = "Re-export for flight : {} , field : {} complete".format(flight_id, str(field_id))
+    if len(failids) != 0:
+        message = "Re-export for flight : {} , field : {} complete \n Failed export for flied {}".format(flight_id, str(field_id),str(failids))
+    PhotoScan.app.messageBox(message)
     
     
     return 

@@ -16,8 +16,6 @@ def batch_export_ortho():
     for path in path_to_project:
         export_filename = os.path.basename(path['ProjectPath']).replace('.psz','.tif')
         export_path = os.path.join(export_folder,export_filename)
-        if os.path.exists(export_path):
-            continue 
         try:
             project = PhotoScan.app.document
             project.open(path['ProjectPath'])
