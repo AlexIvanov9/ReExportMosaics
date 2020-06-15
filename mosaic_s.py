@@ -287,9 +287,10 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
     
     # check if precent id if and return list of id 
     try:
-        field_id = check_tr_if_present(flight_id, field_id, camera, exportfolder , replace)
-    except:
+        rezerv = check_tr_if_present(flight_id, field_id, camera, exportfolder , replace)
         field_id = rezerv 
+    except Exception as e:
+        print (e)
     if len(field_id) == 0:
         return "All project already done"
     
