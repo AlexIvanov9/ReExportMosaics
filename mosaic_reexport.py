@@ -106,8 +106,8 @@ def get_export_folder(exportpath,flight_id):
             f= open(exportpath,"r")
             ep = f.read()
             f.close
-            if not os.path.exists(ef):
-                os.makedirs(ef)
+            if not os.path.exists(ep):
+                os.makedirs(ep)
             return ep
         except Exception as e:
             print(e)
@@ -135,7 +135,7 @@ def check_txt(txtpath):
     if not os.path.isfile(txtpath) :
         return False
     nowTime = time.time()
-    ageTime = nowTime - 12
+    ageTime = nowTime - 20
     fileTime = os.path.getmtime(txtpath)
     if fileTime > ageTime:
         return True
@@ -143,7 +143,7 @@ def check_txt(txtpath):
     
 #projectpath = "ProjectPath.txt"
 """
-check if file was create late than 12 sec if yes pass if no run project
+check if file was create late than 20 sec if yes pass if no run project
 """
 projectpath = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Agisoft\PhotoScan Pro\scripts\ProjectPath.txt'))
 exportpath = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Agisoft\PhotoScan Pro\scripts\mosaicexport.txt'))

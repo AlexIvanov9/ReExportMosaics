@@ -1,6 +1,7 @@
 import shutil,fnmatch,glob,os,json
 import subprocess,time
 try:
+    import dirfuncs
     import PhotoScan
     from psutils import get_project_filename
 except ImportError:
@@ -23,7 +24,7 @@ def check_user_script():
         except:
             pass
     if not os.path.exists(scriptpath):
-        scr = os.path.join(os.getcwd(),'python','Scripts','mosaic_reexport.py')
+        scr = os.path.join('C:\Program Files\Agisoft\PhotoScan Pro 1.3\python\Scripts\mosaic_reexport.py')
         shutil.copy(scr,scripfolder)
     txtpath = os.path.join(scripfolder,'ProjectPath.txt')
     return txtpath
@@ -63,10 +64,11 @@ def old_project_name(project):
     str - path to 1.0 project on C drive
     """
     
+    delete_old_projects(os.environ["TMP"])
     pathExport = os.path.join(os.environ["TMP"] + "Projects")
     if not os.path.exists(pathExport):
         os.makedirs(pathExport)
-    delete_old_projects(os.environ["TMP"])
+    
     pathExport = os.path.join(pathExport, os.path.basename(project)[:-4] + 'v1.psz')
     return pathExport 
 
@@ -101,6 +103,7 @@ def re_build_project(flight_id, field_id, typecam):
     filter.removePoints(25)
     chunk.resetRegion()
     chunk.buildModel(surface=PhotoScan.HeightField, interpolation=PhotoScan.EnabledInterpolation)
+    chunk.model.closeHoles()
     chunk.smoothModel(1)
     # chunk.buildOrthomosaic(surface = PhotoScan.DataSource.ModelData, blending= PhotoScan.AverageBlending)
     #chunk.crs.project(chunk.transform.matrix.mulp(chunk.region.center)) пременить к центрам снимков
@@ -145,9 +148,71 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replac
     if len(field_id) == 0:
         return errormesage
     
-    save_old_v(flight_id, field_id, typecam, exportfolder)
+    save_old_v(flight_id, field_id, typecam, exportfolder = exportfolder)
     return
+
+
+
+
+def copyimages(flight,field,copy = True):
     
+    
+    chunk = PhotoScan.app.document.chunk
+    ordir = os.path.dirname(chunk.cameras[1].frames[0].photo.path)
+    
+    if copy:
+        #if exportfolder == False:
+        exportfolder = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Temp',"Projects{}{}".format(flight,field)))
+            #exportfolder = os.path.join(os.environ["TMP"],"Projects{}{}".format(flight,field))
+        # скопировать файл
+        if not os.path.exists(exportfolder):
+            os.makedirs(exportfolder)
+        for i in range (len(chunk.cameras)):
+            scr = chunk.cameras[i].frames[0].photo.path
+            shutil.copy(scr,exportfolder)
+        script = os.path.join('C:\Program Files\Agisoft\PhotoScan Pro 1.3\python\Scripts','Colorize.py')
+        shutil.copy(script,exportfolder)
+        script = os.path.join(exportfolder,os.path.basename(script))
+        print(script)
+        cmd = r'C:\Python27\ArcGIS10.6\python.exe "{}"'.format(script)
+        os.system(cmd)
+        return ordir,exportfolder
+    else:
+       exportfolder = os.path.join(dirfuncs.guess_flight_dir(flight),'Jenoptik/Corrected')
+       return ordir,exportfolder
+       
+    
+def replaceimages(original,exportfolder):
+    chunk = PhotoScan.app.document.chunk
+    for i in range (len(chunk.cameras)):
+        pathphoto = chunk.cameras[i].frames[0].photo.path
+        chunk.cameras[i].frames[0].photo.path = pathphoto.replace(original, exportfolder)
+    return
+
+    
+    
+def colorize(flight_id, field_id, camera = "jenoptik",exportfolder = False, replace = False, fix = False):
+    
+    if replace:
+        copy = False
+    else:
+        copy = True
+        open_p(flight_id, field_id, camera)
+    original,exportpath = copyimages(flight_id, field_id,copy)
+    replaceimages(original,exportpath)
+    
+    if fix == False:
+        message = "Replaced all images"
+        PhotoScan.app.messageBox(message)
+    if fix and replace:
+        doc = PhotoScan.app.document
+        doc.save()
+        print("D {}".format(original))
+        fix_st(flight_id, field_id, camera, exportfolder)
+    
+    
+
+
 
 
 def path_to_txt (txtpath, projectpath):
@@ -280,7 +345,7 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
     #rezerv = field_id.copy()
     # copy scipt and get path to save information about project
     txtsaveproj = check_user_script()
-    if exportfolder:
+    if exportfolder != False:
         export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
     else:
         exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)

@@ -1,7 +1,6 @@
 import shutil,fnmatch,glob,os,json
 import subprocess,time
 try:
-    import dirfuncs
     import PhotoScan
     from psutils import get_project_filename
 except ImportError:
@@ -40,7 +39,7 @@ def delete_old_projects(folder):
     folder - str path to folder which need to clear
     """
     nowTime = time.time()
-    ageTime = nowTime - 60*60*6 # hours to delete old files
+    ageTime = nowTime - 60*60*5 # hours to delete old files
     for path,dirs,files in os.walk(folder):
         for file in files:
             fileName = os.path.join(path,file)
@@ -148,59 +147,7 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replac
     
     save_old_v(flight_id, field_id, typecam, exportfolder)
     return
-
-
-
-
-def copyimages(flight,field, exportfolder = False, copy = True):
     
-    
-    chunk = PhotoScan.app.document.chunk
-    ordir = os.path.dirname(chunk.cameras[1].frames[0].photo.path)
-    
-    if copy:
-        if exportfolder == False:
-            exportfolder = os.path.join(os.environ["TMP"],"Projects{}{}".format(flight,field))
-        # скопировать файл
-        if not os.path.exists(exportfolder):
-            os.makedirs(exportfolder)
-        for i in range (len(chunk.cameras)):
-            scr = chunk.cameras[i].frames[0].photo.path
-            shutil.copy(scr,exportfolder)
-        script = os.path.join(os.getcwd(),'python','Scripts','Colorize.py')
-        shutil.copy(script,exportfolder)
-        #script = os.path.join(os.path.dirname(exportfolder),os.path.basename(script))
-        #subprocess.call([script])
-        
-        return ordir,exportfolder
-    else:
-       exportfolder = os.path.join(dirfuncs.guess_flight_dir(flight),'Jenoptik/Corrected')
-       return ordir,exportfolder
-       
-    
-def replaceimages(original,exportfolder):
-    chunk = PhotoScan.app.document.chunk
-    for i in range (len(chunk.cameras)):
-        pathphoto = chunk.cameras[i].frames[0].photo.path
-        chunk.cameras[i].frames[0].photo.path = pathphoto.replace(original, exportfolder)
-    return
-
-    
-    
-def colorize(flight_id, field_id, camera = "jenoptik", rerun = False, exportpath = False):
-    
-    if rerun:
-        copy = False
-    else:
-        copy = True
-        open_p(flight_id, field_id, camera)
-    original,exportfolder = copyimages(flight_id, field_id,exportpath,copy)
-    replaceimages(original,exportfolder)
-    message = "Replace all images to {}".format(exportfolder) 
-    PhotoScan.app.messageBox(message)
-    
-
-
 
 
 def path_to_txt (txtpath, projectpath):
