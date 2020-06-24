@@ -53,6 +53,7 @@ def delete_old_projects(folder):
                     pass
     return
 
+
 def old_project_name(project):
     """
     delete old projects and create name for new
@@ -71,6 +72,8 @@ def old_project_name(project):
     
     pathExport = os.path.join(pathExport, os.path.basename(project)[:-4] + 'v1.psz')
     return pathExport 
+
+
 
 
 def re_build_project(flight_id, field_id, typecam):
@@ -110,6 +113,7 @@ def re_build_project(flight_id, field_id, typecam):
     doc.save()
     
     return
+
 
 
 
@@ -170,11 +174,13 @@ def copyimages(flight,field,copy = True):
         for i in range (len(chunk.cameras)):
             scr = chunk.cameras[i].frames[0].photo.path
             shutil.copy(scr,exportfolder)
-        script = os.path.join('C:\Program Files\Agisoft\PhotoScan Pro 1.3\python\Scripts','Colorize.py')
+        script = r'C:\Program Files\Agisoft\PhotoScan Pro 1.3\python\Scripts\Colorize.py'
         shutil.copy(script,exportfolder)
-        script = os.path.join(exportfolder,os.path.basename(script))
+        #quite often problem with user name change to this type
+        script = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Temp',"Projects{}{}\Colorize.py".format(flight,field)))
+        #script = r'{}'.format(os.path.join(exportfolder,os.path.basename(script)))
         print(script)
-        cmd = r'C:\Python27\ArcGIS10.6\python.exe "{}"'.format(script)
+        cmd = 'C:\Python27\ArcGIS10.6\python.exe "{}"'.format(script)
         os.system(cmd)
         return ordir,exportfolder
     else:
@@ -188,6 +194,7 @@ def replaceimages(original,exportfolder):
         pathphoto = chunk.cameras[i].frames[0].photo.path
         chunk.cameras[i].frames[0].photo.path = pathphoto.replace(original, exportfolder)
     return
+
 
     
     
@@ -204,10 +211,11 @@ def colorize(flight_id, field_id, camera = "jenoptik",exportfolder = False, repl
     if fix == False:
         message = "Replaced all images"
         PhotoScan.app.messageBox(message)
-    if fix and replace:
+    if replace:
+        shutil.rmtree(os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Temp',"Projects{}{}".format(flight_id,field_id))))
         doc = PhotoScan.app.document
         doc.save()
-        print("D {}".format(original))
+    if fix:
         fix_st(flight_id, field_id, camera, exportfolder)
     
     
@@ -244,7 +252,7 @@ def export_path_to_txt(folder,exportpath):
     
     
 
-def open_p(flight_id, field_id, camera = "jenoptik"):
+def open_p(flight_id, field_id, camera = "jenoptik",openp = True):
     """
     Find and open Photoscan 1.3 porject
 
@@ -253,8 +261,16 @@ def open_p(flight_id, field_id, camera = "jenoptik"):
     flight_id : int
     field_id : int or str
     camera : str by default jenoptik
+    openp : bool if True will open project if False return project name 
     """
-    project = get_project_filename(flight_id, field_id, camera)
+    try:
+        project = get_project_filename(flight_id, field_id, camera)
+        if openp == False:
+            return project
+    except Exception as e:
+        if type(e)  == ValueError and camera == "stack":
+            print('First try to run \nimproc.preprocess.write_separated_log({},{},"stack") \n from Jupyter'.format(flight_id,field_id))
+        return None
     doc = PhotoScan.app.document
     doc.open(project)
     return project
@@ -273,9 +289,8 @@ def get_old_version(flight_id, field_id, camera = "jenoptik"):
     -------
     path to save project
     """
-    project = get_project_filename(flight_id, field_id, camera)
+    project = open_p(flight_id, field_id, camera)
     doc = PhotoScan.app.document
-    doc.open(project)
     path = old_project_name(project)
     doc.save(path ,version = '1.0.0')
     #if save only one time it doesn't work
@@ -291,17 +306,28 @@ def check_tr_if_present(flight_id, field_id, camera, exportfolder,replace = True
     if replace = True delete this image
     if yes delete from list for re-save project
     
+    Parameters
+    ----------
+    flight_id : int
+    field_id : int or str
+    camera : str by default jenoptik
+    exportfolder : str - folder for expot mosaic
+    replace : check if mosaic image already present in folder, if True will delete
+    
+    Returns
+    -------
+    path to save project
+    
     """
     
     if type(field_id).__name__ != "list":
         field_id = str(field_id).split("delimiter")
     flightdircontents = glob.glob(exportfolder + '/*.tif')
     for field in field_id:
-        try:
-            project = get_project_filename(flight_id, field, camera)
-        except Exception as e:
-            print(e)
-            
+        project = open_p(flight_id, field, camera,openp=False)
+        if project == None:
+            field_id = list(set(field_id) - set([field]))
+            continue
             
         for file in flightdircontents:
             if fnmatch.fnmatch(file, "*{}*".format(os.path.basename(project)[:-4])):
@@ -342,8 +368,7 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
     project 1.0
 
     """
-    #rezerv = field_id.copy()
-    # copy scipt and get path to save information about project
+    
     txtsaveproj = check_user_script()
     if exportfolder != False:
         export_path_to_txt(os.path.dirname(txtsaveproj),exportfolder)
@@ -351,13 +376,16 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
         exportfolder = 'C:\Daily artifacts\Daily artifacts\Flight {}'.format(flight_id)
     
     # check if precent id if and return list of id 
+    e = None
     try:
         rezerv = check_tr_if_present(flight_id, field_id, camera, exportfolder , replace)
         field_id = rezerv 
     except Exception as e:
         print (e)
-    if len(field_id) == 0:
-        return "All project already done"
+    if len(field_id) == 0 and e == None:
+        return "All projects are done"
+    if len(field_id) == 0 and e != None:
+        return e
     
     
     path = []
