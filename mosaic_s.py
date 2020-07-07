@@ -121,7 +121,7 @@ def re_build_project(flight_id, field_id, typecam):
 
 
 
-def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = True):
+def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = True, copya = False):
     """
     after re-build 1.3 project
     re-save in 1.0 to avoide seams
@@ -152,7 +152,7 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replac
     if len(field_id) == 0:
         return errormesage
     
-    save_old_v(flight_id, field_id, typecam, exportfolder = exportfolder)
+    save_old_v(flight_id, field_id, typecam, exportfolder = exportfolder, copytoa = copya)
     return
 
 
@@ -270,6 +270,8 @@ def open_p(flight_id, field_id, camera = "jenoptik",openp = True):
     except Exception as e:
         if type(e)  == ValueError and camera == "stack":
             print('First try to run \nimproc.preprocess.write_separated_log({},{},"stack") \n from Jupyter'.format(flight_id,field_id))
+            
+        print (e)
         return None
     doc = PhotoScan.app.document
     doc.open(project)
@@ -343,8 +345,27 @@ def check_tr_if_present(flight_id, field_id, camera, exportfolder,replace = True
                 
     return field_id
     
+
     
-    
+def copytoad(projectlst,exportfolder,flight):
+    """
+    take list of projects that was exported and copy to flight A
+    """
+    copyafolder = os.path.join(dirfuncs.guess_flight_dir(flight, "mosaic"),"corrected")
+    if not os.path.isdir(os.path.dirname(copyafolder)):
+        os.makedirs(os.path.dirname(copyafolder))
+        
+    for project in projectlst:
+        
+        export_filename = os.path.basename(project).replace('.psz','.tif')
+        
+        export_path = os.path.join(exportfolder,export_filename)
+        try:
+            shutil.copy2(export_path,copyafolder)
+        except Exception as e:
+            print (e)
+        
+    return "Done"
     
     
     
@@ -352,7 +373,7 @@ def check_tr_if_present(flight_id, field_id, camera, exportfolder,replace = True
     
 
 
-def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,replace = False):
+def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,replace = False, copytoa = False):
     
     """
     Re-save project to 1.0 version of Photoscan, helpful when we have a seams on TR
@@ -383,7 +404,7 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
     except Exception as e:
         print (e)
     if len(field_id) == 0 and e == None:
-        return "All projects are done"
+        return "There is no 1.0 project to run"
     if len(field_id) == 0 and e != None:
         return e
     
@@ -420,6 +441,11 @@ def save_old_v(flight_id, field_id, camera = "jenoptik", exportfolder = False,re
     message = "Re-export for flight : {} , field : {} complete".format(flight_id, str(field_id))
     if len(failids) != 0:
         message = "Re-export for flight : {} , field : {} complete \n Failed export for flied {}".format(flight_id, str(field_id),str(failids))
+    if copytoa:
+        copytoad(patholdprojects,exportfolder,flight_id)
+        
+
+        
     PhotoScan.app.messageBox(message)
     
     
