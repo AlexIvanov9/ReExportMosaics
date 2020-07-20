@@ -4,6 +4,7 @@ try:
     import dirfuncs
     import PhotoScan
     from psutils import get_project_filename
+    import basesettings
 except ImportError:
     pass
 
@@ -54,6 +55,130 @@ def delete_old_projects(folder):
     return
 
 
+
+def find_images(flight_id, field_id, camera):
+    """
+    get list of images for photoscan project
+    """
+    data_dir = dirfuncs.get_data_dir(flight_id, camera,
+                                     mosaic_input_stage=None)
+    
+    imu_dir = dirfuncs.get_imu_dir(flight_id, field_id, camera)
+    imupath = imu_dir + basesettings.get_setting(camera, "logs", "imu")
+    if os.path.exists(imupath):
+        
+        expected_images, likely_turns = dirfuncs.get_expected_images(
+            flight_id, field_id, camera)
+        available_images = dirfuncs.get_available_images(flight_id, field_id,
+                                                         camera)
+    image_filenames = []
+    for im in expected_images:
+        if im in available_images:
+            image_filenames.append(data_dir + im)
+    if not image_filenames:
+        print("Images for this project not available in {}".format(data_dir))
+        return None
+    return image_filenames, likely_turns
+
+
+
+
+def disable_alternate_photos(project=None, n=2):
+    """
+    Disables every other photo in loaded project.
+
+    Parameters
+    ----------
+    project : PhotoScan project instance
+    """
+
+    if project is None:
+        project = PhotoScan.app.document
+    chunk = project.chunk
+    c = 0
+    for i in chunk.cameras:
+        if c % n != 0:
+            i.enabled = False
+        c += 1
+
+
+
+
+
+def add_images_to_project(flight_id, field_id, camera,project,
+                          master_channel=-1, alt_cameras=None,
+                          use_turns=False):
+    """
+    Given a list of filenames of images, loads the images into a photoscan
+    project.
+
+    Parameters
+    ----------
+    image_filenames : list
+        Full paths to images to load in project
+
+    likely_turns : list
+        Boolean values corresponding to image_filenames which indicate whether
+        the image has been classified as a turn, extra pass, late pass etc.
+    project : instance of PhotoScan.app.document
+
+    master_channel : int (opt)
+        Default is -1, which is PhotoScan default. Corresponds to band in
+        image to use as channel for alignment.
+
+    alt_cameras : int (opt)
+        If set, will enable only every nth image. E.g. alt_cameras=2 keeps
+        every other image, alt_cameras=3 keeps every third image, etc.
+
+    use_turns : boolean (opt)
+        Default is False, if True will not disable images classified as turn,
+        late, or belonging to a duplicate pass in the PhotoScan project.
+
+    Returns
+    -------
+    project : instance of PhotoScan.app.document
+        Same project passed in, but now with images.
+
+    Notes
+    -----
+    Only takes a "fresh" project. If there is already a chunk, an exception
+    will be raised.
+    """
+    
+    #project = PhotoScan.app.document
+    image_filenames, likely_turns = find_images(flight_id, field_id, camera)
+    
+    if len(project.chunks) > 0:
+        project.remove(project.chunks)
+
+    chunk = project.addChunk()
+    chunk.label = "Chunk 1"
+    chunk.addPhotos(image_filenames)
+    if "1.4" in PhotoScan.app.version:
+        chunk.master_channel = master_channel
+    else:
+        chunk.primary_channel = master_channel
+
+
+    if not use_turns:
+        disabled_images = [image for (image, turn) in zip(image_filenames,
+                                                          likely_turns) if turn]
+        disabled_images = [os.path.basename(x) for x in disabled_images]
+        for i in [x for x in project.chunk.cameras if x.label in disabled_images]:
+            i.enabled = False
+        print("Disabling {} cameras".format(len(disabled_images)))
+
+    if alt_cameras is not None:
+        disable_alternate_photos(project, alt_cameras)
+
+    return project
+
+
+
+
+
+
+
 def old_project_name(project):
     """
     delete old projects and create name for new
@@ -75,30 +200,37 @@ def old_project_name(project):
 
 
 
-def run_down_bat(flight,field,camera):
+def run_down_bat(flight,field,camera,sep = False, buffer = False):
     """
     create bat file for donwsync photoscan project from S3
     """
-    block = ''
+    
+    #block = ''
     print(flight,field,camera)
+    fieldsep = field
     if type(field).__name__ != 'int':
-        fieldsep = field
-        block = ''.join(re.findall(r'[^\W\d]', field))
+        #block = ''.join(re.findall(r'[^\W\d]', field))
         field = ''.join(re.findall(r'[\d]', field))
-        
-    print(flight,field,camera,block)   
+         
     batpath = os.path.join(os.path.join(os.environ['USERPROFILE'],'AppData\Local\Temp','{}{}.bat'.format(flight,field)))
     bat = open(batpath,'w+')
 
     bat.write('pushd %TEMP% \n')
-    if block != '':
-        function = '"import improc;improc.qc.syncer.downsync_mosaic({0}, {1},camera = '.format(flight,field) + "'{}'".format(camera) + ",mosaic_block_letter = '{}'".format(block) + ')"'
-    else:
+    #if block != '':
+        #function = '"import improc;improc.qc.syncer.downsync_mosaic({0}, {1},camera = '.format(flight,field) + "'{}'".format(camera) + ",mosaic_block_letter = '{}'".format(block) + ')"'
+    #else:
+    if sep == False:
         function = '"import improc;improc.qc.syncer.downsync_mosaic({0}, {1}, camera = '.format(flight,field) + "'{}'".format(camera) + ')"'
-    bat.write('C:/Users/administrator/Anaconda3/envs/improc/python -c {} \n'.format(function))
-    if camera == "stack" or camera == "ids rgb":
+        bat.write('C:/Users/administrator/Anaconda3/envs/improc/python -c {} \n'.format(function))
+    if camera == "stack" or camera == "ids rgb" and buffer == False:
         separete = '"import improc;improc.preprocess.write_separated_log({}'.format(flight)+ " ,'{}'".format(fieldsep) + " ,camera = '{}'".format(camera) + ')"'
         bat.write('C:/Users/administrator/Anaconda3/envs/improc/python -c {}'.format(separete))
+    
+    elif buffer:
+        separete = '"import improc;improc.preprocess.write_separated_log({}'.format(flight)+ " ,'{}'".format(fieldsep) + " ,camera = '{}'".format(camera) + ',fov_frac = {})"'.format(buffer)
+        bat.write('C:/Users/administrator/Anaconda3/envs/improc/python -c {}'.format(separete))
+    
+    
     bat.close()
     subprocess.check_call(batpath)
     os.remove(batpath)
@@ -107,19 +239,29 @@ def run_down_bat(flight,field,camera):
 
 
 
-def re_build_project(flight_id, field_id, typecam):
+def re_build_project(flight_id, field_id, typecam, buffer = False):
     """
     rebuild project for 1.3
     to fix 80% such artefacts as stalactide, blobls
     """
     open_p(flight_id, field_id, typecam)
     doc = PhotoScan.app.document
+    if buffer != False:
+        add_images_to_project(flight_id, field_id, typecam, doc)
+        
     chunk = doc.chunk
+    doc.chunk.point_cloud = None
+    doc.chunk.model = None
+    doc.chunk.orthomosaic = None
+    chunk.resetRegion()
+    
+    
     # reset all camera
     for camera in chunk.cameras:
         camera.transform = None
         # camera.enabled = True
     # image matching and alignment
+    
     chunk.matchPhotos(accuracy=PhotoScan.HighestAccuracy, generic_preselection=True,
                      reference_preselection=True, keypoint_limit=1000,tiepoint_limit=0)
     chunk.alignCameras(adaptive_fitting=False)
@@ -145,7 +287,7 @@ def re_build_project(flight_id, field_id, typecam):
     
     return
 
-def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = True):
+def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replace = True , buffer = False):
     """
     after re-build 1.3 project
     re-save in 1.0 to avoide seams
@@ -159,6 +301,9 @@ def fix_st(flight_id, field_id, typecam = "jenoptik",exportfolder = False,replac
     Returns
     mosaic images
     """
+    
+    if buffer != False:
+        run_down_bat(flight_id, field_id, typecam ,sep = False, buffer = buffer)
         
     if exportfolder == False:
         exportfolder = r'D:\Flight {}\mosaic'.format(flight_id)
@@ -295,6 +440,10 @@ def open_p(flight_id, field_id, camera = "jenoptik",openp = True):
         if type(e) == FileNotFoundError or type(e) == RuntimeError:
             run_down_bat(flight_id, field_id, camera)
             project = get_project_filename(flight_id, field_id, camera)
+        if type(e) == ValueError:
+            run_down_bat(flight_id, field_id, camera,sep = True)
+            project = get_project_filename(flight_id, field_id, camera)
+            
         
     """
         if type(e) == FileNotFoundError:
